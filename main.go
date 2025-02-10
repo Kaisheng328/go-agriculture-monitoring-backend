@@ -59,7 +59,8 @@ func main() {
 	r.GET("/abnormal-history", getAbnormalHistory)
 	r.GET("/download-csv", downloadCSV)
 	r.GET("/ws", handleWebSocket)
-
+	r.DELETE("/delete/:id", deleteRecord)
+	r.DELETE("/delete/all", deleteAllRecords)
 	// Start server
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -165,7 +166,34 @@ func downloadCSV(c *gin.Context) {
 		})
 	}
 }
+func deleteRecord(c *gin.Context) {
+	id := c.Param("id")
+	var record SensorData
 
+	// Check if the record exists
+	if err := db.First(&record, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Record not found"})
+		return
+	}
+
+	// Delete the record
+	if err := db.Delete(&record).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete record"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Record deleted successfully"})
+}
+
+func deleteAllRecords(c *gin.Context) {
+	// Delete all records from the SensorData table
+	if err := db.Exec("DELETE FROM sensor_data").Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete records"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "All records deleted successfully"})
+}
 func handleWebSocket(c *gin.Context) {
 	conn, err := wsUpgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
