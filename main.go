@@ -1,9 +1,11 @@
 package main
 
 import (
+	"bytes"
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -13,6 +15,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 	"github.com/joho/godotenv"
+	"github.com/owulveryck/onnx-go"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
@@ -25,21 +28,21 @@ var (
 		},
 	}
 	clients = make(map[*websocket.Conn]bool)
+	model   *onnx.Model
 )
 
 type SensorData struct {
 	ID           uint      `json:"id" gorm:"primaryKey"`
 	Timestamp    time.Time `json:"timestamp"`
-	Temperature  float64   `json:"temperature"`
-	Humidity     float64   `json:"humidity"`
-	SoilMoisture float64   `json:"soil_moisture"`
+	Temperature  float32   `json:"temperature"`
+	Humidity     float32   `json:"humidity"`
+	SoilMoisture float32   `json:"soil_moisture"`
 	IsAbnormal   bool      `json:"is_abnormal"`
 }
 
 func main() {
 	// Load environment variables
 	godotenv.Load()
-
 	// Connect to PostgreSQL database
 	dsn := os.Getenv("DATABASE_URL")
 	var err error
@@ -69,6 +72,27 @@ func main() {
 	log.Fatal(r.Run(":" + port))
 }
 
+func getPredictedSoilMoisture(temp float32, humidity float32) (float64, error) {
+	apiURL := os.Getenv("AI_URL") // AI API URL
+
+	requestBody, _ := json.Marshal(map[string]float32{
+		"temperature": temp,
+		"humidity":    humidity,
+	})
+
+	resp, err := http.Post(apiURL, "application/json", bytes.NewBuffer(requestBody))
+	if err != nil {
+		return 0, err
+	}
+	defer resp.Body.Close()
+
+	body, _ := ioutil.ReadAll(resp.Body)
+
+	var response map[string]float64
+	json.Unmarshal(body, &response)
+
+	return response["predicted_soil_moisture"], nil
+}
 func receiveData(c *gin.Context) {
 	var data SensorData
 	if err := c.ShouldBindJSON(&data); err != nil {
@@ -80,6 +104,15 @@ func receiveData(c *gin.Context) {
 	// Assign timestamp with Malaysia timezone
 	data.Timestamp = time.Now().In(loc)
 	// Just pass the data without changing the timestamp, as PostgreSQL is already handling it
+	if data.SoilMoisture < 5 || data.SoilMoisture > 95 {
+		predictedSoilMoisture, err := getPredictedSoilMoisture(float32(data.Temperature), float32(data.Humidity))
+		if err == nil {
+			fmt.Println("🔮 Using AI Predicted Soil Moisture:", predictedSoilMoisture)
+			data.SoilMoisture = float32(predictedSoilMoisture)
+		} else {
+			fmt.Println("❌ AI Prediction failed, keeping original value.")
+		}
+	}
 	data.IsAbnormal = checkAbnormality(data)
 	db.Create(&data)
 
