@@ -212,6 +212,9 @@ func DeleteAllRecords(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete records"})
 		return
 	}
-
+	if err := config.DB.Exec("ALTER SEQUENCE sensor_data_id_seq RESTART WITH 1").Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to reset primary key sequence"})
+		return
+	}
 	c.JSON(http.StatusOK, gin.H{"message": "All records deleted successfully"})
 }
