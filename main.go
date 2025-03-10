@@ -53,6 +53,7 @@ func main() {
 	auth.GET("/abnormal-history", controllers.GetAbnormalHistory)
 	auth.GET("/download-csv", controllers.DownloadCSV)
 	auth.GET("/ws", controllers.HandleWebSocket)
+	auth.PUT("/update/:id", controllers.UpdateRecord)
 	auth.DELETE("/delete/:id", controllers.DeleteRecord)
 	auth.DELETE("/delete/all", controllers.DeleteAllRecords)
 

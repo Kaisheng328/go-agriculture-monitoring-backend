@@ -218,3 +218,43 @@ func DeleteAllRecords(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "All records deleted successfully"})
 }
+
+// Update edit a  sensor data record.
+func UpdateRecord(c *gin.Context) {
+	userID, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+
+	id := c.Param("id")
+	var record models.SensorData
+
+	// Check if the record exists
+	if err := config.DB.First(&record, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Record not found"})
+		return
+	}
+
+	// Bind the JSON input to a temporary struct
+	var input models.SensorData
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input"})
+		return
+	}
+
+	// Update record fields
+	record.Temperature = input.Temperature
+	record.Humidity = input.Humidity
+	record.SoilMoisture = input.SoilMoisture
+
+	// Save changes to the database
+	var user models.User
+	config.DB.First(&user, userID)
+	if err := config.DB.Save(&record).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update record"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Record updated successfully", "updated_record": record})
+}
