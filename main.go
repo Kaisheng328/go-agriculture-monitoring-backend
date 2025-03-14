@@ -4,15 +4,16 @@ import (
 	"log"
 	"os"
 
+	"fyp/config"
+	"fyp/controllers"
+	"fyp/middlewares"
+	"fyp/models"
+
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
-
-	"fyp/config"
-	"fyp/controllers"
-	"fyp/middlewares"
 )
 
 func main() {
@@ -29,7 +30,7 @@ func main() {
 	// Set the global DB in the config package and migrate models
 	config.DB = db
 	controllers.MigrateModels(db)
-
+	config.DB.AutoMigrate(&models.DeviceLocation{})
 	// Set up Gin router with CORS configuration
 	r := gin.Default()
 	r.Use(cors.New(cors.Config{
@@ -40,6 +41,7 @@ func main() {
 	}))
 
 	// Public routes
+
 	r.POST("/signup", controllers.Signup)
 	r.POST("/login", controllers.Login)
 
@@ -56,6 +58,8 @@ func main() {
 	auth.PUT("/update/:id", controllers.UpdateRecord)
 	auth.DELETE("/delete/:id", controllers.DeleteRecord)
 	auth.DELETE("/delete/all", controllers.DeleteAllRecords)
+	auth.POST("/location", controllers.HandleDeviceLocation)            // POST location from ESP32
+	auth.GET("/get-location/:device_id", controllers.GetDeviceLocation) // GET location for frontend
 
 	port := os.Getenv("PORT")
 	if port == "" {

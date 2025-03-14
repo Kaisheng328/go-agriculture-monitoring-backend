@@ -1,9 +1,13 @@
 package controllers
 
 import (
+	"bytes"
 	"encoding/csv"
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net/http"
+	"os"
 	"time"
 
 	"fyp/config"
@@ -257,4 +261,101 @@ func UpdateRecord(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Record updated successfully", "updated_record": record})
+}
+
+func HandleDeviceLocation(c *gin.Context) {
+	var payload models.GeolocationRequest
+
+	// Validate incoming JSON payload
+	if err := c.ShouldBindJSON(&payload); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid payload"})
+		return
+	}
+
+	// Extract userID from JWT (handle both float64 and uint types)
+	userID, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+
+	// Convert userID to uint safely
+	var userIDUint uint
+	switch v := userID.(type) {
+	case float64:
+		userIDUint = uint(v)
+	case uint:
+		userIDUint = v
+	default:
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid user ID type"})
+		return
+	}
+
+	// Send Wi-Fi data to Google API
+	location, err := GetLocationFromGoogle(payload)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get location"})
+		return
+	}
+
+	// Store location in the database
+	deviceLocation := models.DeviceLocation{
+		DeviceID:  userIDUint, // Use converted user ID
+		Latitude:  location.Location.Lat,
+		Longitude: location.Location.Lng,
+		Accuracy:  location.Accuracy,
+	}
+
+	if err := config.DB.Create(&deviceLocation).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to store location"})
+		return
+	}
+
+	// Return the location to the client
+	c.JSON(http.StatusOK, gin.H{
+		"message":   "Location stored successfully",
+		"latitude":  location.Location.Lat,
+		"longitude": location.Location.Lng,
+		"accuracy":  location.Accuracy,
+	})
+}
+
+// GetDeviceLocation: Retrieves the latest location by user_id
+func GetDeviceLocation(c *gin.Context) {
+	deviceID := c.Param("device_id")
+
+	var location models.DeviceLocation
+
+	// Find the latest location by device_id
+	if err := config.DB.Where("device_id = ?", deviceID).Order("timestamp DESC").First(&location).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Location not found"})
+		return
+	}
+
+	// Return the location details
+	c.JSON(http.StatusOK, gin.H{
+		"device_id": location.DeviceID,
+		"latitude":  location.Latitude,
+		"longitude": location.Longitude,
+		"accuracy":  location.Accuracy,
+	})
+}
+
+// GetLocationFromGoogle: Calls Google Geolocation API
+func GetLocationFromGoogle(data models.GeolocationRequest) (models.GeolocationResponse, error) {
+	var geoResp models.GeolocationResponse
+	apiKey := os.Getenv("GOOGLE_API_KEY")
+	url := fmt.Sprintf("https://www.googleapis.com/geolocation/v1/geolocate?key=%s", apiKey)
+
+	jsonData, _ := json.Marshal(data)
+	resp, err := http.Post(url, "application/json", bytes.NewBuffer(jsonData))
+	if err != nil {
+		return geoResp, err
+	}
+	defer resp.Body.Close()
+
+	body, _ := ioutil.ReadAll(resp.Body)
+	json.Unmarshal(body, &geoResp)
+
+	return geoResp, nil
 }
