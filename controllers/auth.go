@@ -7,6 +7,7 @@ import (
 
 	"fyp/config"
 	"fyp/models"
+	"fyp/utils"
 
 	"github.com/dgrijalva/jwt-go"
 	"github.com/gin-gonic/gin"
@@ -110,4 +111,20 @@ func updateUserRole(email string, newRole string) error {
 	}
 	fmt.Printf("✅ Updated role for %s to %s\n", email, newRole)
 	return nil
+}
+
+func ToggleAI(c *gin.Context) {
+	var body models.ToggleAIRequest
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(400, gin.H{"error": "Invalid request", "details": err.Error()})
+		return
+	}
+
+	// Log the received body to ensure it's being parsed correctly
+	fmt.Println("Received request body:", body)
+
+	// Set the AI enabled status for the specific plant
+	utils.SetGlobalAIEnabled(body.Enabled, body.Plant)
+
+	c.JSON(200, gin.H{"message": "AI toggle updated"})
 }

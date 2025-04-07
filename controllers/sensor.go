@@ -34,7 +34,7 @@ func ReceiveData(c *gin.Context) {
 	loc, _ := time.LoadLocation("Asia/Kuala_Lumpur")
 	data.Timestamp = time.Now().In(loc)
 
-	// Convert userID to uint (handle float64 if needed)
+	// Convert userID to uint
 	switch v := userID.(type) {
 	case float64:
 		data.UserID = uint(v)
@@ -45,11 +45,14 @@ func ReceiveData(c *gin.Context) {
 		return
 	}
 
-	// Use AI prediction if soil moisture is out of range
-	if data.SoilMoisture < 5 || data.SoilMoisture > 95 {
-		predicted, err := utils.GetPredictedSoilMoisture(float32(data.Temperature), float32(data.Humidity))
+	isAIEnabled, plantAI := utils.IsGlobalAIEnabled()
+
+	if data.SoilMoisture < 5 || data.SoilMoisture > 95 || isAIEnabled {
+		timestamp := data.Timestamp.Format("2006-01-02 15:04:05")
+		predictedTimestamp, predicted, err := utils.GetPredictedSoilMoisture(plantAI, timestamp, float32(data.Temperature), float32(data.Humidity))
+
 		if err == nil {
-			fmt.Println("🔮 Using AI Predicted Soil Moisture:", predicted)
+			fmt.Println("🔮 Using AI Predicted Soil Moisture:", predicted, "for timestamp:", predictedTimestamp)
 			data.SoilMoisture = float32(predicted)
 		} else {
 			fmt.Println("❌ AI Prediction failed, keeping original value.")

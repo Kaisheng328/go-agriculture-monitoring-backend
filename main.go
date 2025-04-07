@@ -44,7 +44,7 @@ func main() {
 
 	r.POST("/signup", controllers.Signup)
 	r.POST("/login", controllers.Login)
-
+	r.POST("/toggle-ai", controllers.ToggleAI)
 	// Protected routes using auth middleware
 	auth := r.Group("/")
 	auth.Use(middlewares.AuthMiddleware())

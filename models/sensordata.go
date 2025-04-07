@@ -11,3 +11,7 @@ type SensorData struct {
 	SoilMoisture float32   `json:"soil_moisture"`
 	IsAbnormal   bool      `json:"is_abnormal"`
 }
+type ToggleAIRequest struct {
+	Plant   string `json:"plant"`
+	Enabled bool   `json:"enabled"`
+}
