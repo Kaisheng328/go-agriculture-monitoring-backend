@@ -74,20 +74,57 @@ func ReceiveData(c *gin.Context) {
 // GetHistory returns sensor data history.
 func GetHistory(c *gin.Context) {
 	var records []models.SensorData
-	userID, exists := c.Get("user_id")
+	userIDFromToken, exists := c.Get("user_id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		return
 	}
 
 	var user models.User
-	config.DB.First(&user, userID)
-	if user.Role == "admin" {
-		config.DB.Order("timestamp desc").Find(&records)
-	} else {
-		config.DB.Where("user_id = ?", userID).Order("timestamp desc").Find(&records)
+	if err := config.DB.First(&user, userIDFromToken).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to find user"})
+		return
 	}
+
+	// Check if admin and see if query param `user_id` is passed
+	requestedUserID := c.Query("user_id")
+
+	if user.Role == "admin" {
+		if requestedUserID != "" {
+			// Admin filtering by user_id
+			if err := config.DB.Where("user_id = ?", requestedUserID).Order("timestamp desc").Find(&records).Error; err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch data for requested user"})
+				return
+			}
+		} else {
+			// Admin requesting all users' data
+			if err := config.DB.Order("timestamp desc").Find(&records).Error; err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch all data"})
+				return
+			}
+		}
+	} else {
+		// Normal user can only see their own data
+		if err := config.DB.Where("user_id = ?", userIDFromToken).Order("timestamp desc").Find(&records).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch user data"})
+			return
+		}
+	}
+
 	c.JSON(http.StatusOK, records)
+}
+func GetProfile(c *gin.Context) {
+	user, _ := c.Get("user_id")
+	c.JSON(http.StatusOK, user)
+}
+
+func GetUsers(c *gin.Context) {
+	var users []models.User
+	if err := config.DB.Find(&users).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to fetch users"})
+		return
+	}
+	c.JSON(http.StatusOK, users)
 }
 
 // GetAbnormalCount returns the count of abnormal sensor data.

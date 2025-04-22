@@ -104,6 +104,35 @@ func PromoteToAdmin(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "User promoted to admin successfully"})
 }
 
+func PromoteToUser(c *gin.Context) {
+	userID, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+
+	var currentUser models.User
+	config.DB.First(&currentUser, userID)
+	if currentUser.Role != "admin" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Access denied"})
+		return
+	}
+
+	var req struct {
+		Email string `json:"email"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request data"})
+		return
+	}
+
+	if err := updateUserRole(req.Email, "user"); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update user role"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "User promoted to admin successfully"})
+}
+
 func updateUserRole(email string, newRole string) error {
 	result := config.DB.Model(&models.User{}).Where("email = ?", email).Update("role", newRole)
 	if result.Error != nil {
