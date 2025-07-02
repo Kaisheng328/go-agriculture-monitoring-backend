@@ -47,7 +47,7 @@ func ReceiveData(c *gin.Context) {
 
 	isAIEnabled, plantAI := utils.IsGlobalAIEnabled()
 
-	if data.SoilMoisture < 5 || data.SoilMoisture > 95 || isAIEnabled {
+	if isAIEnabled {
 		timestamp := data.Timestamp.Format("2006-01-02 15:04:05")
 		predictedTimestamp, predicted, err := utils.GetPredictedSoilMoisture(plantAI, timestamp, float32(data.Temperature), float32(data.Humidity))
 
