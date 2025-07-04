@@ -12,7 +12,7 @@ import (
 
 // GET /device-config/esp32-001
 func GetDeviceConfig(c *gin.Context) {
-	const duration = 1 * 24 * time.Hour // 14 days
+	const duration = 14 * 24 * time.Hour // 14 days
 	// const duration = 5 * time.Minute //5minutes
 	now := time.Now()
 	devMode := false
