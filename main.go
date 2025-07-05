@@ -29,8 +29,14 @@ func main() {
 
 	// Set the global DB in the config package and migrate models
 	config.DB = db
-	controllers.MigrateModels(db)
+	controllers.MigrateModels(db) // This will migrate User, SensorData, and DeveloperModeSetting
 	config.DB.AutoMigrate(&models.DeviceLocation{})
+
+	// Initialize developer mode state from DB
+	if err := config.InitDeveloperModeState(config.DB); err != nil {
+		log.Fatalf("Failed to initialize developer mode state: %v", err)
+	}
+
 	// Set up Gin router with CORS configuration
 	r := gin.Default()
 	r.Use(cors.New(cors.Config{
