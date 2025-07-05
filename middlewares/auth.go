@@ -8,30 +8,52 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-var secretKey = []byte("your-secret-key") // Use the same secret key as in auth.go
+var secretKey = []byte("your-secret-key") // Must match token generation secret
 
-// AuthMiddleware validates the JWT token.
+// AuthMiddleware validates the JWT token from header OR query parameter.
 func AuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		tokenString := c.GetHeader("Authorization")
-		if tokenString == "" || !strings.HasPrefix(tokenString, "Bearer ") {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token format"})
+		var tokenString string
+
+		// 1. Try Authorization header
+		authHeader := c.GetHeader("Authorization")
+		if strings.HasPrefix(authHeader, "Bearer ") {
+			tokenString = strings.TrimPrefix(authHeader, "Bearer ")
+		}
+
+		// 2. Fallback to query parameter (e.g., ?token=abc123)
+		if tokenString == "" {
+			tokenString = c.Query("token")
+		}
+
+		// If still empty, return error
+		if tokenString == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Authorization token required"})
 			c.Abort()
 			return
 		}
-		tokenString = strings.TrimPrefix(tokenString, "Bearer ")
 
+		// Parse JWT token
 		claims := jwt.MapClaims{}
 		_, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
 			return secretKey, nil
 		})
 		if err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token"})
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid or expired token"})
 			c.Abort()
 			return
 		}
 
-		c.Set("user_id", claims["user_id"])
+		// Extract user_id from token claims
+		userID, ok := claims["user_id"]
+		if !ok {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token payload"})
+			c.Abort()
+			return
+		}
+
+		// Save user_id to context
+		c.Set("user_id", userID)
 		c.Next()
 	}
 }

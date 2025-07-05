@@ -51,9 +51,11 @@ func main() {
 	r.POST("/signup", controllers.Signup)
 	r.POST("/login", controllers.Login)
 	r.POST("/toggle-ai", controllers.ToggleAI)
+
 	// Protected routes using auth middleware
 	auth := r.Group("/")
 	auth.Use(middlewares.AuthMiddleware())
+	auth.GET("/ws", controllers.HandleWebSocket)
 	auth.POST("/promote-admin", controllers.PromoteToAdmin)
 	auth.POST("/promote-user", controllers.PromoteToUser)
 	auth.POST("/sensor-data", controllers.ReceiveData)
@@ -65,7 +67,6 @@ func main() {
 	auth.GET("/abnormal-count", controllers.GetAbnormalCount)
 	auth.GET("/abnormal-history", controllers.GetAbnormalHistory)
 	auth.GET("/download-csv", controllers.DownloadCSV)
-	auth.GET("/ws", controllers.HandleWebSocket)
 	auth.GET("/device-config/esp32-001", controllers.GetDeviceConfig)
 	auth.PUT("/update/:id", controllers.UpdateRecord)
 	auth.DELETE("/delete/:id", controllers.DeleteRecord)
