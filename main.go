@@ -71,6 +71,9 @@ func main() {
 	auth.PUT("/update/:id", controllers.UpdateRecord)
 	auth.DELETE("/delete/:id", controllers.DeleteRecord)
 	auth.DELETE("/delete/all", controllers.DeleteAllRecords)
+	auth.DELETE("/delete/my-records", controllers.DeleteMyRecords)
+	auth.DELETE("/delete/user/:user_id", controllers.DeleteUserRecords)
+	auth.DELETE("/admin/delete-user/:user_id", controllers.DeleteUserAccount)
 	auth.POST("/location", controllers.HandleDeviceLocation)            // POST location from ESP32
 	auth.GET("/get-location/:device_id", controllers.GetDeviceLocation) // GET location for frontend
 

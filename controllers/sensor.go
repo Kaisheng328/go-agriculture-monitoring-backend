@@ -415,3 +415,153 @@ func GetLocationFromGoogle(data models.GeolocationRequest) (models.GeolocationRe
 
 	return geoResp, nil
 }
+
+// Add this new function to your controllers/sensor.go file
+
+// DeleteMyRecords allows users to delete all their own sensor data records
+func DeleteMyRecords(c *gin.Context) {
+	userID, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+
+	// Get user information
+	var user models.User
+	if err := config.DB.First(&user, userID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+		return
+	}
+
+	// Delete all records for the current user
+	result := config.DB.Where("user_id = ?", userID).Delete(&models.SensorData{})
+	if result.Error != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete your records"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":       fmt.Sprintf("Successfully deleted all %d records for your account", result.RowsAffected),
+		"deleted_count": result.RowsAffected,
+		"username":      user.Username,
+	})
+}
+
+// Add this new function to your controllers/sensor.go file
+
+// DeleteUserRecords deletes all sensor data records for a specific user
+func DeleteUserRecords(c *gin.Context) {
+	userID, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+
+	var user models.User
+	config.DB.First(&user, userID)
+
+	// Get target user ID from URL parameter
+	targetUserID := c.Param("user_id")
+
+	// Check permissions
+	if user.Role != "admin" && fmt.Sprintf("%v", userID) != targetUserID {
+		c.JSON(http.StatusForbidden, gin.H{"error": "You can only delete your own records or must be an admin"})
+		return
+	}
+
+	// Verify target user exists
+	var targetUser models.User
+	if err := config.DB.First(&targetUser, targetUserID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+		return
+	}
+
+	// Delete all records for the target user
+	result := config.DB.Where("user_id = ?", targetUserID).Delete(&models.SensorData{})
+	if result.Error != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete user records"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":       fmt.Sprintf("Successfully deleted %d records for user %s", result.RowsAffected, targetUser.Username),
+		"deleted_count": result.RowsAffected,
+		"user_id":       targetUserID,
+	})
+}
+
+// DeleteUserAccount allows admins to delete a user account and all associated data
+func DeleteUserAccount(c *gin.Context) {
+	userID, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+
+	// Check if current user is admin
+	var currentUser models.User
+	if err := config.DB.First(&currentUser, userID).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to find current user"})
+		return
+	}
+
+	if currentUser.Role != "admin" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Only admins can delete user accounts"})
+		return
+	}
+
+	// Get target user ID from URL parameter
+	targetUserID := c.Param("user_id")
+
+	// Prevent admin from deleting their own account
+	if fmt.Sprintf("%v", userID) == targetUserID {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "You cannot delete your own account"})
+		return
+	}
+
+	// Check if target user exists
+	var targetUser models.User
+	if err := config.DB.First(&targetUser, targetUserID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+		return
+	}
+
+	// Start a database transaction to ensure data consistency
+	tx := config.DB.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	// Delete all sensor data records for the user
+	sensorDataResult := tx.Where("user_id = ?", targetUserID).Delete(&models.SensorData{})
+	if sensorDataResult.Error != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete user's sensor data"})
+		return
+	}
+
+	// Delete the user account
+	if err := tx.Delete(&targetUser).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete user account"})
+		return
+	}
+
+	// Commit the transaction
+	if err := tx.Commit().Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to commit transaction"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": fmt.Sprintf("Successfully deleted user account '%s' and all associated data", targetUser.Username),
+		"deleted_user": gin.H{
+			"id":       targetUser.ID,
+			"username": targetUser.Username,
+			"role":     targetUser.Role,
+		},
+		"deleted_sensor_records": sensorDataResult.RowsAffected,
+	})
+}
