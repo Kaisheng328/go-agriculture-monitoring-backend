@@ -49,12 +49,13 @@ func ReceiveData(c *gin.Context) {
 
 	if isAIEnabled {
 		timestamp := data.Timestamp.Format("2006-01-02 15:04:05")
-		predictedTimestamp, predicted, err := utils.GetPredictedSoilMoisture(plantAI, timestamp, float32(data.Temperature), float32(data.Humidity))
+		predictedTimestamp, predicted, err := utils.GetPredictedSoilMoisture(config.DB, data.UserID, plantAI, timestamp, float32(data.Temperature), float32(data.Humidity))
 
 		if err == nil {
 			fmt.Println("🔮 Using AI Predicted Soil Moisture:", predicted, "for timestamp:", predictedTimestamp)
 			data.SoilMoisture = float32(predicted)
 		} else {
+			fmt.Println(err)
 			fmt.Println("❌ AI Prediction failed, keeping original value.")
 		}
 	}

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"time"
 
 	"fyp/config"
 	"fyp/models"
@@ -60,6 +61,22 @@ func HandleWebSocket(c *gin.Context) {
 		Conn:   conn,
 		UserID: userID,
 	}
+	conn.SetReadLimit(512)
+	conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+	conn.SetPongHandler(func(string) error {
+		conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+		return nil
+	})
+	go func() {
+		ticker := time.NewTicker(30 * time.Second)
+		defer ticker.Stop()
+		for {
+			<-ticker.C
+			if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+				break
+			}
+		}
+	}()
 	defer func() {
 		delete(clients, conn)
 		conn.Close()
