@@ -76,7 +76,9 @@ func main() {
 	auth.DELETE("/admin/delete-user/:user_id", controllers.DeleteUserAccount)
 	auth.POST("/location", controllers.HandleDeviceLocation)            // POST location from ESP32
 	auth.GET("/get-location/:device_id", controllers.GetDeviceLocation) // GET location for frontend
-
+	auth.POST("/train-model", controllers.TrainModel)
+	auth.GET("/model/status/:plant_name", controllers.GetTrainingStatus)
+	auth.GET("/models", controllers.ListAvailableModels)
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
